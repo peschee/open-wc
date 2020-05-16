@@ -36,7 +36,7 @@
     "update-dependency": "node scripts/update-dependency.js"
   },
   "devDependencies": {
-    "@11ty/eleventy": "^0.10.0",
+    "@11ty/eleventy": "^0.11.0",
     "@11ty/eleventy-plugin-syntaxhighlight": "^3.0.1",
     "@commitlint/cli": "7.2.1",
     "@commitlint/config-conventional": "7.1.2",
