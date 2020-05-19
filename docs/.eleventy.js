@@ -1,3 +1,5 @@
+// USED - make "internal"? - what do we want to read/merge from there?
+
 const pluginMdjs = require('./_plugin-mdjs/index.js');
 
 module.exports = function (eleventyConfig) {

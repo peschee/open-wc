@@ -13,6 +13,10 @@ const { createError } = require('./utils');
  * @returns {InputHtmlData}
  */
 function getInputHtmlData(pluginOptions, rollupInput, rootDir = process.cwd()) {
+  if (pluginOptions.multipleInputHtml) {
+    return pluginOptions.multipleInputHtml.map(f => ({ rootDir, ...f }));
+  }
+
   if (pluginOptions.inputHtml) {
     return {
       name: pluginOptions.name,

@@ -1,5 +1,5 @@
-/* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable no-param-reassign */
+/** @typedef {import('./types').SpaOptions} SpaOptions */
 /** @typedef {import('polyfills-loader').PolyfillsLoaderConfig} PolyfillsLoaderConfig */
 
 const merge = require('deepmerge');
@@ -19,7 +19,7 @@ const {
 /**
  * @param {SpaOptions} options
  */
-async function createMpaConfig(options) {
+function createMpaConfig(options) {
   const basicConfig = createBasicConfig(options);
   const userOptions = merge(
     {
@@ -32,30 +32,14 @@ async function createMpaConfig(options) {
   );
   let outputDir = basicConfig.output.dir;
 
-  const htmlPlugins = [];
-  const polyfillPlugins = [];
+  // console.log(userOptions);
 
-  if (!userOptions.inputGlob) {
-    throw new Error('Cannot generate multi build outputs when html plugin is disabled');
-  }
-
-  const htmlFiles = await listFiles(userOptions.inputGlob);
-  const htmlPluginName = [];
-
-  for (const inputPath of htmlFiles) {
-    const name = inputPath.substring(userOptions.rootPath.length + 1);
-    const htmlPlugin = pluginWithOptions(html, userOptions.html, {
-      minify: !userOptions.developmentMode,
-      transform: [userOptions.injectServiceWorker && applyServiceWorkerRegistration].filter(
-        isFalsy,
-      ),
-      inject: false,
-      inputPath,
-      name,
-    });
-    htmlPlugins.push(htmlPlugin);
-    htmlPluginName.push(name);
-  }
+  const htmlPlugin = pluginWithOptions(html, userOptions.html, {
+    minify: !userOptions.developmentMode,
+    multipleInputHtml: userOptions.multipleInputHtml,
+    transform: [userOptions.injectServiceWorker && applyServiceWorkerRegistration].filter(isFalsy),
+    inject: false,
+  });
 
   let polyfillsLoaderConfig = {
     polyfills: {},
@@ -63,16 +47,13 @@ async function createMpaConfig(options) {
   };
 
   if (userOptions.legacyBuild) {
-    if (htmlPlugins.length < 1) {
+    if (!htmlPlugin) {
       throw new Error('Cannot generate multi build outputs when html plugin is disabled');
     }
     outputDir = basicConfig.output[0].dir;
 
-    for (const htmlPlugin of htmlPlugins) {
-      basicConfig.output[0].plugins.push(htmlPlugin.addOutput('module'));
-      basicConfig.output[1].plugins.push(htmlPlugin.addOutput('nomodule'));
-    }
-
+    basicConfig.output[0].plugins.push(htmlPlugin.addOutput('module'));
+    basicConfig.output[1].plugins.push(htmlPlugin.addOutput('nomodule'));
     polyfillsLoaderConfig = {
       modernOutput: {
         name: 'module',
@@ -88,20 +69,6 @@ async function createMpaConfig(options) {
       minify: !userOptions.developmentMode,
       polyfills: defaultPolyfills,
     };
-  }
-
-  for (let i = 0; i < htmlPlugins.length; i += 1) {
-    const localConfig = {
-      ...polyfillsLoaderConfig,
-    };
-    const name = htmlPluginName[i];
-    localConfig.htmlFileName = name;
-    const polyfillPlugin = pluginWithOptions(
-      polyfillsLoader,
-      userOptions.polyfillsLoader,
-      localConfig,
-    );
-    polyfillPlugins.push(polyfillPlugin);
   }
 
   const workboxPlugin = pluginWithOptions(
@@ -140,11 +107,11 @@ async function createMpaConfig(options) {
 
   return merge(basicConfig, {
     plugins: [
-      // create HTML files output
-      ...htmlPlugins,
+      // create HTML file output
+      htmlPlugin,
 
-      // inject polyfills loaders into HTML
-      ...polyfillPlugins,
+      // inject polyfills loader into HTML
+      pluginWithOptions(polyfillsLoader, userOptions.polyfillsLoader, polyfillsLoaderConfig),
     ],
   });
 }

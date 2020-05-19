@@ -31,3 +31,5 @@ by [Andrew Zigler](https://github.com/azigler)
 ## [Shared Behaviors best practices with Mocha](https://dev.to/open-wc/shared-behaviors-best-practices-with-mocha-519d)
 
 by [Noël Macé](https://github.com/noelmace)
+
+<script type="module" src="./trick-rollup-plugin-html-as-it-needs-at-least-one-module.js"></script>

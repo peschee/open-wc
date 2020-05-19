@@ -67,7 +67,8 @@ function shouldReadInputFromRollup(rollupInputOptions, pluginOptions) {
     typeof rollupInputOptions.input === 'string' &&
     rollupInputOptions.input.endsWith('.html') &&
     !pluginOptions.inputHtml &&
-    !pluginOptions.inputPath
+    !pluginOptions.inputPath &&
+    !pluginOptions.multipleInputHtml
   );
 }
 

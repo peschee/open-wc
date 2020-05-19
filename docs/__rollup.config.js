@@ -1,3 +1,5 @@
+// NOT USED - what do we want to read/merge from there?
+
 const path = require('path');
 const copy = require('rollup-plugin-copy');
 const { generateSW } = require('rollup-plugin-workbox');

@@ -36,17 +36,19 @@ function rollupPluginHtml(pluginOptions) {
   };
 
   /** @type {string} */
-  let inputHtml;
+  // let inputHtml;
   /** @type {string[]} */
-  let inputModuleIds;
+  // let inputModuleIds;
   /** @type {Map<string, string>} */
-  let inlineModules;
+  // let inlineModules;
   /** @type {string} */
-  let htmlFileName;
+  // let htmlFileName;
   /** @type {GeneratedBundle[]} */
   let generatedBundles;
   /** @type {TransformFunction[]} */
   let externalTransformFns = [];
+  /** @type {{ inputHtml: string, inputModuleIds: string[], htmlFileName: string}[]}  */
+  const htmlFiles = [];
 
   // variables for multi build
   /** @type {string[]} */
@@ -59,9 +61,10 @@ function rollupPluginHtml(pluginOptions) {
 
   /**
    * @param {string} mainOutputDir
+   * @paran {data} data
    * @returns {Promise<EmittedFile>}
    */
-  async function createHtmlAsset(mainOutputDir) {
+  async function createHtmlAsset(mainOutputDir, { inputModuleIds, htmlFileName, inputHtml }) {
     if (generatedBundles.length === 0) {
       throw createError('Cannot output HTML when no bundles have been generated');
     }
@@ -87,6 +90,14 @@ function rollupPluginHtml(pluginOptions) {
     };
   }
 
+  async function createHtmlAssets(mainOutputDir) {
+    const assets = [];
+    for (const htmlAsset of htmlFiles) {
+      assets.push(await createHtmlAsset(mainOutputDir, htmlAsset));
+    }
+    return assets;
+  }
+
   return {
     name: '@open-wc/rollup-plugin-html',
 
@@ -101,26 +112,39 @@ function rollupPluginHtml(pluginOptions) {
         rollupInput = /** @type {string} */ (rollupInputOptions.input);
       }
 
-      if (!pluginOptions.inputHtml && !pluginOptions.inputPath && !rollupInput) {
-        htmlFileName = pluginOptions.name || defaultFileName;
-        return null;
+      // if (!pluginOptions.inputHtml && !pluginOptions.inputPath && !rollupInput) {
+      //   htmlFileName = pluginOptions.name || defaultFileName;
+      //   return null;
+      // }
+
+      const inputHtmlDataArray = getInputHtmlData(pluginOptions, rollupInput);
+      for (const inputHtmlData of inputHtmlDataArray) {
+        const htmlFileName = pluginOptions.name || inputHtmlData.name || defaultFileName;
+        const inputHtmlResources = extractModules(inputHtmlData, htmlFileName);
+        const inputHtml = inputHtmlResources.htmlWithoutModules;
+        const inlineModules = inputHtmlResources.inlineModules;
+
+        const inputModuleIds = [
+          ...inputHtmlResources.moduleImports,
+          ...inputHtmlResources.inlineModules.keys(),
+        ];
+        htmlFiles.push({
+          inputHtml,
+          inputModuleIds,
+          htmlFileName,
+          inlineModules,
+        });
+      }
+      let inputModuleIds = [];
+      for (const foo of htmlFiles) {
+        inputModuleIds = [...inputModuleIds, ...foo.inputModuleIds];
       }
 
-      const inputHtmlData = getInputHtmlData(pluginOptions, rollupInput);
-      htmlFileName = pluginOptions.name || inputHtmlData.name || defaultFileName;
-      const inputHtmlResources = extractModules(inputHtmlData, htmlFileName);
-      inputHtml = inputHtmlResources.htmlWithoutModules;
-      inlineModules = inputHtmlResources.inlineModules;
+      // if (rollupInput) {
+      //   // we are taking input from the rollup input, we should replace the html from the input
+      //   return { ...rollupInputOptions, input: inputModuleIds };
+      // } // we need to add modules to existing rollup input
 
-      inputModuleIds = [
-        ...inputHtmlResources.moduleImports,
-        ...inputHtmlResources.inlineModules.keys(),
-      ];
-
-      if (rollupInput) {
-        // we are taking input from the rollup input, we should replace the html from the input
-        return { ...rollupInputOptions, input: inputModuleIds };
-      } // we need to add modules to existing rollup input
       return addRollupInput(rollupInputOptions, inputModuleIds);
     },
 
@@ -138,11 +162,12 @@ function rollupPluginHtml(pluginOptions) {
     },
 
     resolveId(id) {
-      if (!inlineModules || !inlineModules.has(id)) {
-        return null;
+      for (const file of htmlFiles) {
+        if (file.inlineModules && file.inlineModules.has(id)) {
+          return id;
+        }
       }
-
-      return id;
+      return null;
     },
 
     /**
@@ -150,7 +175,12 @@ function rollupPluginHtml(pluginOptions) {
      * @param {string} id
      */
     load(id) {
-      return (inlineModules && inlineModules.get(id)) || null;
+      for (const file of htmlFiles) {
+        if (file.inlineModules && file.inlineModules.has(id)) {
+          return file.inlineModules.get(id);
+        }
+      }
+      return null;
     },
 
     /**
@@ -164,7 +194,12 @@ function rollupPluginHtml(pluginOptions) {
         throw createError('Output must have a dir option set.');
       }
       generatedBundles.push({ name: 'default', options, bundle });
-      this.emitFile(await createHtmlAsset(options.dir));
+
+      const assets = await createHtmlAssets(options.dir);
+      for (const asset of assets) {
+        this.emitFile(asset);
+      }
+      // this.emitFile(await createHtmlAsset(options.dir));
     },
 
     getHtmlFileName() {
@@ -222,8 +257,10 @@ function rollupPluginHtml(pluginOptions) {
                 // when all builds are finished
                 const { dir } = options;
                 deferredEmitHtmlFile = () =>
-                  createHtmlAsset(dir).then(asset => {
-                    this.emitFile(asset);
+                  createHtmlAssets(dir).then(assets => {
+                    for (const asset of assets) {
+                      this.emitFile(asset);
+                    }
                     resolve();
                   });
               }
@@ -248,9 +285,11 @@ function rollupPluginHtml(pluginOptions) {
               }
 
               // emit asset from this output
-              createHtmlAsset(options.dir).then(asset => {
+              createHtmlAssets(options.dir).then(assets => {
                 resolve();
-                this.emitFile(asset);
+                for (const asset of assets) {
+                  this.emitFile(asset);
+                }
               });
               return;
             }
